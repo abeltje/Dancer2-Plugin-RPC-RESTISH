@@ -5,7 +5,7 @@ use Dancer::Plugin;
 
 no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
-our $VERSION = '0.990';
+our $VERSION = '0.99_01';
 
 use Dancer::RPCPlugin::CallbackResult;
 use Dancer::RPCPlugin::DispatchFromConfig;

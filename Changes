@@ -1,0 +1,16 @@
+Changes on 2019-05-14 for repository at:
+  Fetch URL: git@github.com:abeltje/Dancer-Plugin-RPC-RESTISH.git
+  Push  URL: git@github.com:abeltje/Dancer-Plugin-RPC-RESTISH.git
+
+Enjoy!
+
+0.99_01 2019-05-14T15:10:24+02:00 (9a421dd => Abe Timmerman)
+ - (Abe Timmerman, 1 second ago) Autocommit for distribution
+   Dancer::Plugin::RPC::RESTISH 0.99_01 (test)
+
+0.00_00 2019-05-14T14:57:36+02:00 (9d6d295 => Abe Timmerman)
+ - (Abe Timmerman, 13 minutes ago) Initial commit for
+   Dancer::Plugin::RPC::RESTISH
+ -     A new plugin for the Dancer::Plugin::RPC framework that enables one
+   to
+ -     also expose an existing API as a REST interface.
