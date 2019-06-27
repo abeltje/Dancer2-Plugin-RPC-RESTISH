@@ -8,13 +8,16 @@ example/lib/Example/API/System.pm
 example/lib/Example/EndpointConfig.pm
 example/README
 lib/Dancer/Plugin/RPC/RESTISH.pm
+Changes
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
 README
 t/125-restish.t
+t/130-restish-CORS.t
 t/225-register-restish.t
 t/lib/TestProject.pm
+t/lib/TestProjectCORS.pm
 t/lib/TestProject/ApiCalls.pm
 t/lib/TestProject/SystemCalls.pm
 xt/00-manifest.t

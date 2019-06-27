@@ -141,6 +141,7 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
     my $response = dancer_response(
         POST => '/db/person',
         {
+            headers => [ Origin => 'http://localhost' ],
             body => to_json(
                 {
                     name => 'abeltje',

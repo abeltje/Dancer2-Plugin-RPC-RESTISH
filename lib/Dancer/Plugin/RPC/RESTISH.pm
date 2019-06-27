@@ -30,6 +30,8 @@ my %dispatch_builder_map = (
 
 register restish => sub {
     my ($self, $endpoint, $arguments) = plugin_args(@_);
+    my $allow_origin = $arguments->{cors_allow_origin} || '';
+    my @allowed_origins = split(' ', $allow_origin);
 
     my $publisher;
     given ($arguments->{publish} // 'config') {
@@ -62,17 +64,32 @@ register restish => sub {
     debug("Starting restish-handler build: ", $lister);
     my $handle_call = sub {
         # we'll only handle requests that have either a JSON body or no body
-        if (request->body && request->content_type ne 'application/json') {
+        if (request->body && (request->content_type ne 'application/json')) {
             pass();
         }
 
         my $http_method  = uc(request->method);
         my $request_path = request->path;
+
+        my $has_origin = request->header('Origin') || '';
+        my $allowed_origin = ($allow_origin eq '*')
+                          || grep { $_ eq $has_origin } @allowed_origins;
+
+        my $is_preflight = $has_origin && ($http_method eq 'OPTIONS');
+
+        # with CORS, we do not allow mismatches on Origin
+        if ($allow_origin && $has_origin && !$allowed_origin) {
+            debug("[RESTISH-CORS] '$has_origin' not allowed ($allow_origin)");
+            status(403);
+            content_type('text/plain');
+            return "[CORS] $has_origin not allowed";
+        }
+
         # method_name should exist...
         # we need to turn 'GET@some_resource/:id' into a regex that we can use
         # to match this request so we know what thing to call...
         (my $method_name = $request_path) =~ s{^$endpoint/}{};
-        my $found_match;
+        my ($found_match, $found_method);
         my @sorted_dispatch_keys = sort {
             # reverse length of the regex we use to match
             my ($am, $ar) = split(/\b$_HM_POSTFIX\b/, $a);
@@ -82,20 +99,62 @@ register restish => sub {
             length($br) <=> length($ar)
         } keys %$dispatcher;
 
+        my $preflight_method = $is_preflight
+            ? request->header('Access-Control-Request-Method') // 'GET'
+            : undef;
+
+        my $check_for_method;
         for my $plugin_route (@sorted_dispatch_keys) {
             my ($hm, $route) = split(/\b$_HM_POSTFIX\b/, $plugin_route, 2);
-            next if uc($hm) ne $http_method;
+            $hm = uc($hm);
+
+            if ($allow_origin && $is_preflight) {
+                $check_for_method = $preflight_method;
+            }
+            else {
+                $check_for_method = $http_method;
+            }
+            next if $hm ne $check_for_method;
+
             (my $route_match = $route) =~ s{/:\w+}{/[^/]+}g;
-            debug("[restish_find_route(\U$hm\E => $method_name, $route ($route_match)");
-            if ($method_name =~ m{^$route_match}) {
+            debug("[restish_find_route($check_for_method => $method_name, $route ($route_match)");
+            if ($method_name =~ m{^$route_match$}) {
                 $found_match = $plugin_route;
+                $found_method = $hm;
                 last;
             }
         }
 
         if (! $found_match) {
+            if ($allow_origin && $is_preflight) {
+                my $msg = "[CORS-preflight] failed for $preflight_method => $request_path";
+                debug($msg);
+                status(200); # maybe 403?
+                content_type 'text/plain';
+                return $msg;
+            }
             warning("$http_method => $request_path ($method_name) not found, pass()");
             pass();
+        }
+        debug("[restish_found_route($http_method => $request_path ($method_name) ($found_match)");
+
+        # Send the CORS 'Access-Control-Allow-Origin' header
+        if ($allow_origin && $has_origin) {
+            my $allow_now = $allow_origin eq '*' ? '*' : $has_origin;
+            header 'Access-Control-Allow-Origin' => $allow_now;
+        }
+
+        if ($is_preflight) { # Send more CORS headers and return.
+            debug("[CORS] preflight-request: $request_path ($method_name)");
+            status(200);
+            header(
+                'Access-Control-Allow-Headers',
+                request->header('Access-Control-Request-Headers')
+            ) if request->header('Access-Control-Request-Headers');
+
+            header 'Access-Control-Allow-Methods' => $found_method;
+            content_type 'text/plain';
+            return "";
         }
 
         content_type 'application/json';
@@ -258,8 +317,9 @@ In the Controler-bit:
 
     use Dancer::Plugin::RPC::RESTISH;
     restish '/endpoint' => {
-        publish   => 'pod',
-        arguments => ['MyProject::Admin'],
+        publish           => 'pod',
+        arguments         => ['MyProject::Admin'],
+        cors_allow_origin => '*',
     };
 
 and in the Model-bit (B<MyProject::Admin>):
@@ -327,6 +387,37 @@ plugins:
 The third argument (the base_path) is optional.
 
 =back
+
+=head2 CORS (Cross-Origin Resource Sharing)
+
+If one wants the service to be directly called from javascript in a browser, one
+has to consider CORS as browsers enforce that. This means that the actual
+request is preceded by what's called a I<preflight request> that uses the
+HTTP-method B<OPTIONS> with a number of header-fields.
+
+=over
+
+=item Origin
+
+=item Access-Control-Request-Method
+
+=back
+
+The plugin supports considering these CORS requests, by special casing these
+B<OPTIONS> request and always sending the C<Access-Control-Allow-Origin> header
+as set in the config options.
+
+=head3 cors_allow_origin => $list_of_urls | '*'
+
+
+If left out, no attempt to honour a CORS B<OPTIONS> request will be done.
+
+When set to a value, the B<OPTIONS> request will be executed, for any method in
+the C<Access-Control-Request-Method> header. The responnse to the B<OPTIONS>
+request will also contain every C<Access-Control-Allow-*> header that was
+requested as C<Access-Control-Request-*> header.
+
+When set all responses, will contain the C<Access-Control-Allow-Origin> header with that value.
 
 =head1 INTERNAL
 
