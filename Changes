@@ -1,15 +1,24 @@
-Changes on 2019-05-14 for repository at:
-  Fetch URL: git@github.com:abeltje/Dancer-Plugin-RPC-RESTISH.git
-  Push  URL: git@github.com:abeltje/Dancer-Plugin-RPC-RESTISH.git
+Changes on 2019-06-27 for repository at:
 
 Enjoy!
 
-0.99_01 2019-05-14T15:10:24+02:00 (9a421dd => Abe Timmerman)
- - (Abe Timmerman, 1 second ago) Autocommit for distribution
+0.99_02 2019-06-27T07:22:05+02:00 (0be3426 => Abe Timmerman)
+ - (Abe Timmerman, 0 seconds ago) Autocommit for distribution
+   Dancer::Plugin::RPC::RESTISH 0.99_02 (same)
+
+0.99_01 2019-05-14T15:10:24+02:00 (f5d21c7 => Abe Timmerman)
+ - (Abe Timmerman, 6 weeks ago) Autocommit for distribution
    Dancer::Plugin::RPC::RESTISH 0.99_01 (test)
 
+ - (Abe Timmerman, 6 minutes ago) Basic support for CORS
+ -     By specifying 'cors_allow_origin' as an argument in the
+   configuration of
+ -     the 'restish' keyword, we try to handle preflight-requests an add
+   CORS
+ -     headers for (regular) requests that send the 'Origin' header.
+
 0.00_00 2019-05-14T14:57:36+02:00 (9d6d295 => Abe Timmerman)
- - (Abe Timmerman, 13 minutes ago) Initial commit for
+ - (Abe Timmerman, 6 weeks ago) Initial commit for
    Dancer::Plugin::RPC::RESTISH
  -     A new plugin for the Dancer::Plugin::RPC framework that enables one
    to
