@@ -88,7 +88,7 @@ use Dancer::Test;
         },
         callback => sub {
             return callback_fail(
-                error_code    => -500,
+                error_code    => -32601,
                 error_message => "Force callback error",
             );
         },
@@ -102,11 +102,13 @@ use Dancer::Test;
 
     is($response->{status}, 403, "callback http-status 403") or diag(explain($response));
 
-    my $result = from_json($response->{content});
+    my $result = $response->header('content-type') eq 'application/json'
+        ? from_json($response->{content})
+        : $response->{content};
     is_deeply(
         $result,
         {
-            error_code    => -500,
+            error_code    => -32601,
             error_message => "Force callback error",
             error_data    => { },
         },
@@ -138,11 +140,13 @@ use Dancer::Test;
     );
     is($response->{status}, 500, "callback http-status 500") or diag(explain($response));
 
-    my $result = from_json($response->{content});
+    my $result = $response->header('content-type') eq 'application/json'
+        ? from_json($response->{content})
+        : $response->{content};
     is_deeply(
         $result,
         {
-            error_code    => 500,
+            error_code    => -32500,
             error_message => "terrible death\n",
             error_data    => { },
         },
@@ -175,13 +179,13 @@ use Dancer::Test;
     my $response = dancer_response(
         GET => '/fail3/version',
     );
-    is($response->{status}, 500, "callback http-status 500") or diag(explain($response));
+    is($response->{status}, 400, "callback http-status 500") or diag(explain($response));
 
     my $result = from_json($response->{content});
     is_deeply(
         $result,
         {
-            error_code    => 500,
+            error_code    => -32603,
             error_message => "Internal error: 'callback_result' wrong class SomeRandomClass",
             error_data    => {},
         },
@@ -214,7 +218,7 @@ use Dancer::Test;
     my $response = dancer_response(
         GET => '/fail4/version',
     );
-    is($response->{status}, 500, "code-wrapper http-status 500") or diag(explain($response));
+    is($response->{status}, 400, "code-wrapper http-status 500") or diag(explain($response));
 
     my $result = from_json($response->{content});
     is_deeply(
@@ -280,7 +284,7 @@ use Dancer::Test;
     my $response = dancer_response(
         GET => '/fail6/error',
     );
-    is($response->{status}, 500, "code-fail http-status 500") or diag(explain($response));
+    is($response->{status}, 400, "code-fail http-status 500") or diag(explain($response));
 
     my $result = from_json($response->{content});
     is_deeply(
@@ -304,7 +308,7 @@ use Dancer::Test;
                             error_code => -12345,
                             error_message => "You cannot do that",
                         );
-                        $err->http_status(409);
+                        Dancer::RPCPlugin::ErrorResponse->register_error_responses(restish => { -12345 => 409 });
                         return $err;
                     },
                     package => __PACKAGE__,
@@ -342,7 +346,7 @@ use Dancer::Test;
                             error_code => -12345,
                             error_message => "You cannot do that",
                         );
-                        $err->http_status(409);
+                        Dancer::RPCPlugin::ErrorResponse->register_error_responses(restish => { -12345 => 409 });
                         die $err;
                     },
                     package => __PACKAGE__,
