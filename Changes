@@ -4,15 +4,19 @@ Changes on 2019-11-27 for repository at:
 
 Enjoy!
 
-0.99_04 2019-11-27T15:42:15+01:00 (19ec64e => Abe Timmerman)
- - (Abe Timmerman, 2 seconds ago) Autocommit for distribution
+1.00 2019-11-27T15:46:59+01:00 (689da78 => Abe Timmerman)
+ - (Abe Timmerman, 1 second ago) Autocommit for distribution
+   Dancer::Plugin::RPC::RESTISH 1.00 (minor)
+
+0.99_04 2019-11-27T15:42:15+01:00 (1e60b25 => Abe Timmerman)
+ - (Abe Timmerman, 5 minutes ago) Autocommit for distribution
    Dancer::Plugin::RPC::RESTISH 0.99_04 (same)
 
 0.99_03 2019-10-15T22:19:30+02:00 (50b6878 => Abe Timmerman)
  - (Abe Timmerman, 6 weeks ago) Autocommit for distribution
    Dancer::Plugin::RPC::RESTISH 0.99_03 (same)
 
- - (Abe Timmerman, 88 seconds ago) Send non-references as-is
+ - (Abe Timmerman, 6 minutes ago) Send non-references as-is
  -     One should be able to send plain-text or PDF from a RESTISH service.
 
 0.99_02 2019-06-27T07:22:05+02:00 (20433a4 => Abe Timmerman)
