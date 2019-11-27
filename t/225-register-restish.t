@@ -374,4 +374,28 @@ use Dancer::Test;
     ) or diag(explain($response));
 }
 
+{ # call returns non-ref
+    restish '/return-text' => {
+        publish => sub {
+            return {
+                'GET@plain-text' => dispatch_item(
+                    code => sub {
+                        content_type('text/plain');
+                        return "Plain text\n2 lines";
+                    },
+                    package => __PACKAGE__,
+                ),
+            };
+        },
+    };
+
+    route_exists([GET => '/return-text/plain-text'], "GET /return-text/plain-text");
+    my $response = dancer_response(GET => '/return-text/plain-text');
+    is(
+        $response->{content},
+        "Plain text\n2 lines",
+        "got plain text"
+    ) or diag(explain($response));
+}
+
 done_testing();

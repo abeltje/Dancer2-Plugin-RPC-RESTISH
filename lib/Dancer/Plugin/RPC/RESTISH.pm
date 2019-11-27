@@ -258,7 +258,10 @@ my $handle_call = sub {
         $jsonise_options->{utf8} = 1;
     }
 
-    return to_json($response, $jsonise_options);
+    # non-refs will be send as-is
+    return ref($response)
+        ? to_json($response, $jsonise_options)
+        : $response;
 };
 
 debug("setting routes (restish): $endpoint ", $lister);
