@@ -5,7 +5,7 @@ use Dancer::Plugin;
 
 no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 use constant PLUGIN_NAME => 'restish';
 
