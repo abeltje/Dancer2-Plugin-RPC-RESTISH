@@ -1,25 +1,19 @@
-package Dancer::Plugin::RPC::RESTISH;
-use v5.10;
-use Dancer ':syntax';
-use Dancer::Plugin;
+package Dancer2::Plugin::RPC::RESTISH;
+use Moo;
+use Dancer2::Plugin;
 
-no if $] >= 5.018, warnings => 'experimental::smartmatch';
+with 'Dancer2::RPCPlugin';
 
 our $VERSION = '1.01';
-
 use constant PLUGIN_NAME => 'restish';
 
-use Dancer::RPCPlugin::CallbackResult;
-use Dancer::RPCPlugin::DispatchFromConfig;
-use Dancer::RPCPlugin::DispatchFromPod;
-use Dancer::RPCPlugin::DispatchItem;
-use Dancer::RPCPlugin::DispatchMethodList;
-use Dancer::RPCPlugin::ErrorResponse;
-use Dancer::RPCPlugin::FlattenData;
-use Dancer::RPCPlugin::PluginNames;
+use Dancer2::RPCPlugin::CallbackResultFactory;
+use Dancer2::RPCPlugin::ErrorResponse;
+use Dancer2::RPCPlugin::FlattenData;
+use Dancer2::RPCPlugin::PluginNames;
 
-Dancer::RPCPlugin::PluginNames->new->add_names(PLUGIN_NAME);
-Dancer::RPCPlugin::ErrorResponse->register_error_responses(
+Dancer2::RPCPlugin::PluginNames->new->add_names(PLUGIN_NAME);
+Dancer2::RPCPlugin::ErrorResponse->register_error_responses(
     PLUGIN_NAME ,=> {
         -32500  => 500,
         -32601  => 403,
@@ -36,61 +30,52 @@ Dancer::RPCPlugin::ErrorResponse->register_error_responses(
     }
 );
 
+use JSON;
 use Scalar::Util 'blessed';
+use Time::HiRes 'time';
 
 # A char between the HTTP-Method and the REST-route
 our $_HM_POSTFIX = '@';
 
-my %dispatch_builder_map = (
-        pod    => \&build_dispatcher_from_pod,
-        config => \&build_dispatcher_from_config,
-        );
+plugin_keywords PLUGIN_NAME;
 
-register PLUGIN_NAME ,=> sub {
-    my ($self, $endpoint, $arguments) = plugin_args(@_);
+sub restish {
+    my ($plugin, $endpoint, $arguments) = @_;
     my $allow_origin = $arguments->{cors_allow_origin} || '';
     my @allowed_origins = split(' ', $allow_origin);
 
-    my $publisher;
-    given ($arguments->{publish} // 'config') {
-        when (exists $dispatch_builder_map{$_}) {
-            $publisher = $dispatch_builder_map{$_};
-            $arguments->{arguments} = plugin_setting() if $_ eq 'config';
-        }
-        default {
-            $publisher = $_;
-        }
-    }
-    my $dispatcher = $publisher->($arguments->{arguments}, $endpoint);
+    my $dispatcher = $plugin->dispatch_builder(
+        $endpoint,
+        $arguments->{publish},
+        $arguments->{arguments},
+        plugin_setting(),
+    )->();
 
-    my $lister = Dancer::RPCPlugin::DispatchMethodList->new();
-    $lister->set_partial(
-            protocol => PLUGIN_NAME,
-            endpoint => $endpoint,
-            methods  => [ sort keys %{ $dispatcher } ],
-            );
+    my $lister = $plugin->partial_method_lister(
+        protocol => __PACKAGE__->rpcplugin_tag,
+        endpoint => $endpoint,
+        methods  => [ sort keys %{ $dispatcher } ],
+    );
 
-    my $code_wrapper = $arguments->{code_wrapper}
-        ? $arguments->{code_wrapper}
-        : sub {
-            my $code = shift;
-            my $pkg  = shift;
-            $code->(@_);
-        };
+    my $code_wrapper = $plugin->code_wrapper($arguments);
     my $callback = $arguments->{callback};
 
-    debug("Starting restish-handler build: ", $lister);
+    $plugin->app->log(debug => "Starting restish-handler build: ", $lister);
     my $handle_call = sub {
+        my ($dsl) = @_;
+
         # we'll only handle requests that have either a JSON body or no body
-        my ($ct) = (split /;\s*/, request->content_type, 2);
-        if (request->body && ($ct ne 'application/json')) {
-            pass();
+        my $http_request = $dsl->app->request;
+        my ($ct) = (split /;\s*/, $http_request->content_type, 2);
+        if ($http_request->body && ($ct ne 'application/json')) {
+            $dsl->pass();
         }
 
-        my $http_method  = uc(request->method);
-        my $request_path = request->path;
+        my $http_method  = uc($http_request->method);
+        my $request_path = $http_request->path;
 
-        my $has_origin = request->header('Origin') || '';
+        ##### Cross Origin Resource Sharing(CORS)
+        my $has_origin = $http_request->header('Origin') || '';
         my $allowed_origin = ($allow_origin eq '*')
                           || grep { $_ eq $has_origin } @allowed_origins;
 
@@ -98,9 +83,11 @@ register PLUGIN_NAME ,=> sub {
 
         # with CORS, we do not allow mismatches on Origin
         if ($allow_origin && $has_origin && !$allowed_origin) {
-            debug("[RESTISH-CORS] '$has_origin' not allowed ($allow_origin)");
-            status(403);
-            content_type('text/plain');
+            $dsl->app->log(
+                debug => "[RESTISH-CORS] '$has_origin' not allowed ($allow_origin)"
+            );
+            $dsl->response->status(403);
+            $dsl->response->content_type('text/plain');
             return "[CORS] $has_origin not allowed";
         }
 
@@ -119,7 +106,7 @@ register PLUGIN_NAME ,=> sub {
         } keys %$dispatcher;
 
         my $preflight_method = $is_preflight
-            ? request->header('Access-Control-Request-Method') // 'GET'
+            ? $http_request->header('Access-Control-Request-Method') // 'GET'
             : undef;
 
         my $check_for_method;
@@ -136,7 +123,10 @@ register PLUGIN_NAME ,=> sub {
             next if $hm ne $check_for_method;
 
             (my $route_match = $route) =~ s{:\w+}{[^/]+}g;
-            debug("[restish_find_route($check_for_method => $method_name, $route ($route_match)");
+            $dsl->app->log(
+                debug => "[restish_find_route($check_for_method)]"
+                       . " $method_name, $route ($route_match)"
+            );
             if ($method_name =~ m{^$route_match$}) {
                 $found_match = $plugin_route;
                 $found_method = $hm;
@@ -147,41 +137,48 @@ register PLUGIN_NAME ,=> sub {
         if (! $found_match) {
             if ($allow_origin && $is_preflight) {
                 my $msg = "[CORS-preflight] failed for $preflight_method => $request_path";
-                debug($msg);
-                status(200); # maybe 403?
-                content_type 'text/plain';
+                $dsl->app->log(debug => $msg);
+                $dsl->response->status(200); # maybe 403?
+                $dsl->response->content_type('text/plain');
                 return $msg;
             }
-            warning("$http_method => $request_path ($method_name) not found, pass()");
-            pass();
+            $dsl->app->log(
+                warning => "$http_method => $request_path ($method_name) not found, pass()"
+            );
+            $dsl->pass();
         }
-        debug("[restish_found_route($http_method => $request_path ($method_name) ($found_match)");
+        $dsl->app->log(
+            debug => "[restish_found_route($http_method)]"
+                   . " $request_path ($method_name) ($found_match)"
+        );
 
         # Send the CORS 'Access-Control-Allow-Origin' header
         if ($allow_origin && $has_origin) {
             my $allow_now = $allow_origin eq '*' ? '*' : $has_origin;
-            header('Access-Control-Allow-Origin' => $allow_now);
+            $dsl->response->header('Access-Control-Allow-Origin' => $allow_now);
         }
 
         if ($is_preflight) { # Send more CORS headers and return.
-            debug("[CORS] preflight-request: $request_path ($method_name)");
-            status(200);
-            header(
+            $dsl->app->log(
+                debug => "[CORS] preflight-request: $request_path ($method_name)"
+            );
+            $dsl->response->status(200);
+            $dsl->response->header(
                 'Access-Control-Allow-Headers',
-                request->header('Access-Control-Request-Headers')
-            ) if request->header('Access-Control-Request-Headers');
+                $http_request->header('Access-Control-Request-Headers')
+            ) if $http_request->header('Access-Control-Request-Headers');
 
-            header('Access-Control-Allow-Methods' => $found_method);
-            content_type 'text/plain';
+            $dsl->response->header('Access-Control-Allow-Methods' => $found_method);
+            $dsl->response->content_type('text/plain');
             return "";
         }
 
-        content_type 'application/json';
-        my $method_args = request->body
-            ? from_json(request->body)
+        $dsl->response->content_type ('application/json');
+        my $method_args = $http_request->body
+            ? from_json($http_request->body)
             : { };
-        my $route_args = request->params('route') // { };
-        my $query_args = request->params('query');
+        my $route_args = $http_request->params('route') // { };
+        my $query_args = $http_request->params('query') // { };
 
         # We'll merge method_args and route_args, where route_args win:
         $method_args = {
@@ -189,21 +186,24 @@ register PLUGIN_NAME ,=> sub {
             %$route_args,
             %$query_args,
         };
-        debug("[handling_restish_request('$request_path' via '$found_match')] ", $method_args);
+        $dsl->app->log(
+            debug => "[handling_restish_request('$request_path' via '$found_match')] "
+                   , $method_args
+        );
 
-        my Dancer::RPCPlugin::CallbackResult $continue = eval {
+        my $continue = eval {
             (my $match_re = $found_match) =~ s{:\w+}{[^/]+}g;
-            local $Dancer::RPCPlugin::ROUTE_INFO = {
+            local $Dancer2::RPCPlugin::ROUTE_INFO = {
                 plugin        => PLUGIN_NAME,
                 route_matched => $found_match,
                 matched_re    => $match_re,
                 endpoint      => $endpoint,
                 rpc_method    => $method_name,
-                full_path     => request->path,
+                full_path     => $http_request->path,
                 http_method   => $http_method,
             };
             $callback
-                ? $callback->(request(), $method_name, $method_args)
+                ? $callback->($http_request, $method_name, $method_args)
                 : callback_success();
         };
         my $error = $@;
@@ -214,17 +214,17 @@ register PLUGIN_NAME ,=> sub {
                 error_message => $error,
                 error_data    => $method_args,
             );
-            status $error_response->return_status('restish');
+            $dsl->response->status($error_response->return_status(PLUGIN_NAME));
             $response = $error_response->as_restish_error;
         }
-        elsif (!blessed($continue) || !$continue->isa('Dancer::RPCPlugin::CallbackResult')) {
+        elsif (!blessed($continue) || !$continue->does('Dancer2::RPCPlugin::CallbackResult')) {
             my $error_response = error_response(
                 error_code    => -32603,
                 error_message => "Internal error: 'callback_result' wrong class "
-                . blessed($continue),
+                               . blessed($continue),
                 error_data    => $method_args,
             );
-            status($error_response->return_status('restish'));
+            $dsl->response->status($error_response->return_status(PLUGIN_NAME));
             $response = $error_response->as_restish_error;
         }
         elsif (blessed($continue) && !$continue->success) {
@@ -233,11 +233,11 @@ register PLUGIN_NAME ,=> sub {
                 error_message => $continue->error_message,
                 error_data    => $method_args,
             );
-            status $error_response->return_status('restish');
+            $dsl->response->status($error_response->return_status(PLUGIN_NAME));
             $response = $error_response->as_restish_error;
         }
         else {
-            my Dancer::RPCPlugin::DispatchItem $di = $dispatcher->{$found_match};
+            my $di = $dispatcher->{$found_match};
             my $handler = $di->code;
             my $package = $di->package;
 
@@ -253,20 +253,20 @@ register PLUGIN_NAME ,=> sub {
                         error_message => $error,
                         error_data    => $method_args,
                     );
-                status($error_response->return_status('restish'));
+                $dsl->response->status($error_response->return_status(PLUGIN_NAME));
                 $response = $error_response->as_restish_error;
             }
             if (blessed($response) && $response->can('as_restish_error')) {
-                status($response->return_status('restish'));
+                $dsl->response->status($response->return_status(PLUGIN_NAME));
                 $response = $response->as_restish_error;
             }
             elsif (blessed($response)) {
                 $response = flatten_data($response);
             }
-            debug("[handled_restish_response($request_path)] ", $response);
+            $dsl->app->log(debug => "[handled_restish_response($request_path)] ", $response);
         }
         my $jsonise_options = {canonical => 1};
-        if (config->{encoding} && config->{encoding} =~ m{^utf-?8$}i) {
+        if ($dsl->config->{encoding} && $dsl->config->{encoding} =~ m{^utf-?8$}i) {
             $jsonise_options->{utf8} = 1;
         }
 
@@ -276,41 +276,23 @@ register PLUGIN_NAME ,=> sub {
             : $response;
     };
 
-    debug("setting routes (restish): $endpoint ", $lister);
-    # split the keys in $dispatcher so we can register 'any' methods for all
-    # the handler will know what to do...
+    $plugin->app->log(debug => "setting routes (restish): $endpoint ", $lister);
+    # split the keys in $dispatcher so we can register methods for all
     for my $dispatch_route (keys %$dispatcher) {
         my ($hm, $route) = split(/$_HM_POSTFIX/, $dispatch_route, 2);
         my $dancer_route = "$endpoint/$route";
-        debug("[restish] registering `any $dancer_route` ($hm)");
-        any $dancer_route, $handle_call;
+        $plugin->app->log(debug => "[restish] registering `$hm $dancer_route`");
+        $plugin->app->add_route(
+            method => lc($hm),
+            regexp => $dancer_route,
+            code   => $handle_call,
+        );
     }
 
 };
 
-sub build_dispatcher_from_pod {
-    my ($pkgs, $endpoint) = @_;
-    debug("[build_dispatcher_from_pod]");
-    return dispatch_table_from_pod(
-        plugin   => 'restish',
-        packages => $pkgs,
-        endpoint => $endpoint,
-    );
-}
-
-sub build_dispatcher_from_config {
-    my ($config, $endpoint) = @_;
-    debug("[build_dispatcher_from_config]");
-
-    return dispatch_table_from_config(
-        plugin   => 'restish',
-        config   => $config,
-        endpoint => $endpoint,
-    );
-}
-
-register_plugin();
-true;
+use namespace::autoclean;
+1;
 
 =head1 NAME
 
