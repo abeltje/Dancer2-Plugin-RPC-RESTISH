@@ -4,7 +4,7 @@ use Dancer2::Plugin ;#qw( plugin_keywords );
 
 with 'Dancer2::RPCPlugin';
 
-our $VERSION = '2.01';
+our $VERSION = '2.01_01';
 use constant PLUGIN_NAME => 'restish';
 
 use Dancer2::RPCPlugin::CallbackResultFactory;
