@@ -4,18 +4,21 @@ use Data::Dumper; $Data::Dumper::Indent = 1;
 
 our $VERSION = '0.999';
 
-use Dancer ':syntax';
+use Dancer2;
 
-use Dancer::Plugin::RPC::JSONRPC;
-use Dancer::Plugin::RPC::RESTISH;
+use Dancer2::Plugin::RPC::JSONRPC;
+use Dancer2::Plugin::RPC::RESTISH;
 
+use Example::API::System;
+use Example::API::MockDB;
 use Example::EndpointConfig;
 
 use Bread::Board;
 my $system_api = container 'System' => as {
     container 'apis' => as {
         service 'Example::API::System' => (
-            class => 'Example::API::System',
+            class        => 'Example::API::System',
+            lifecycle    => 'Singleton',
             dependencies => {
                 app_version  => literal $VERSION,
                 app_name     => literal __PACKAGE__,
@@ -27,9 +30,12 @@ my $system_api = container 'System' => as {
 my $db_api = container 'MockDB' => as {
     container 'apis' => as {
         service 'Example::API::MockDB' => (
-            class => 'Example::API::MockDB',
+            class        => 'Example::API::MockDB',
+            lifecycle    => 'Singleton',
             dependencies => {
-                db => literal {persons => { }},
+                db => literal(
+                    { persons => {} }
+                ),
             },
         );
     };
@@ -52,8 +58,11 @@ no Bread::Board;
 
 {
     my $db_config = Example::EndpointConfig->new(
-        publish => 'config',
-        bread_board => $db_api,
+        publish          => 'config',
+        bread_board      => $db_api,
+        plugin_arguments => {
+            plugin_args => { cors_allow_origin => '*' },
+        }
     );
     my @plugins = grep { /^RPC::/ } keys %{ config->{plugins} };
     for my $plugin (@plugins) {

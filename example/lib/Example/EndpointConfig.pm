@@ -8,7 +8,7 @@ Example::EndpointConfig - Takes away the details of L<Dancer::Plugin::RPC>
 
 =head1 SYNOPSIS
 
-    use Dancer ':syntax';
+    use Dancer2;
     use Bread::Board;
     use Example::EndpointConfig { plugins => ['RPC::JSONRPC', 'RPC::XMLRPC'] };
     my $config = Example::EndpointConfig->new(
@@ -93,26 +93,29 @@ has plugin_arguments => (
 );
 
 my %_plugin_info;
-use Dancer::RPCPlugin::PluginNames;
+use Dancer2::RPCPlugin::PluginNames;
 
-sub import {
+sub BUILD {
+    my $self = shift;
+    my $_caller = caller(1);
+
     # Make sure all plugins are loaded before calling
     # `use Example::EndpointConfig;`
     my @loaded_plugins = map {
         (my $module = $_) =~ s{/}{::}g;
         $module =~ s{.pm$}{};
         $module
-    } grep { m{^Dancer/Plugin/RPC/} } keys %INC;
+    } grep { m{^Dancer2/Plugin/RPC/} } keys %INC;
 
     for my $full_plugin (@loaded_plugins) {
-        (my $plugin = $full_plugin) =~ s{^Dancer::Plugin::}{};
+        (my $plugin = $full_plugin) =~ s{^Dancer2::Plugin::}{};
         eval "use $full_plugin";
         die "Cannot load $full_plugin ($plugin): $@" if $@;
 
         (my $plugin_name = $plugin) =~ s{RPC::(\w+)}{\L$1};
         $_plugin_info{$plugin} = {
             name      => $plugin_name,
-            registrar => $full_plugin->can($plugin_name),
+            registrar => $full_plugin->can("$_caller\::$plugin_name"),
         };
     }
 }

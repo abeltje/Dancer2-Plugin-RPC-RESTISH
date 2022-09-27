@@ -1,5 +1,7 @@
 #!/usr/bin/env perl -w
 use strict;
+use FindBin;
+use lib "$FindBin::Bin/../local/lib/perl5";
 
 use Cwd qw(abs_path);
 use Daemon::Control;

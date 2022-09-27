@@ -1,6 +1,10 @@
 package Example::API::System;
 use Moo;
 
+with(
+    'MooX::Params::CompiledValidators',
+);
+
 our $VERSION = '0.001';
 
 has app_version => (
@@ -16,7 +20,7 @@ has active_since => (
     required => 1,
 );
 
-use Dancer::RPCPlugin::DispatchMethodList;
+use Dancer2::RPCPlugin::DispatchMethodList;
 
 use version;
 use POSIX ();
@@ -63,11 +67,11 @@ sub get_status {
 
 =head2 list_methods
 
-=for restish GET@methods list_methods            /system
+=for restish GET@methods list_methods             /system
 
-=for restish GET@methods/:plugin list_methods    /system
+=for restish GET@methods/:any_plugin list_methods /system
 
-=for jsonrpc list_methods list_methods           /system
+=for jsonrpc list_methods list_methods            /system
 
 =head3 Arguments
 
@@ -75,7 +79,7 @@ Named, Struct (or in path)
 
 =over
 
-=item plugin => <any | jsonrpc|restish|restrpc|xmlrpc> (Default 'any')
+=item any_plugin => <any | jsonrpc|restish|restrpc|xmlrpc> (Default 'any')
 
 In rest-context:
 
@@ -87,12 +91,32 @@ In rest-context:
 
 sub list_methods {
     my $self = shift;
-    my %args = %{ $_[0] };
-    my $plugin = $args{plugin} // 'any';
+    $self->validate_parameters(
+        {
+            $self->parameter(
+                any_plugin => $self->Optional,
+                { store => \my $plugin, default => 'any' }
+            ),
+        },
+        $_[0]
+    );
 
-    my $dispatch =  Dancer::RPCPlugin::DispatchMethodList->new;
-    return $dispatch->list_methods($args{plugin}//'any');
+    my $dispatch =  Dancer2::RPCPlugin::DispatchMethodList->new;
+    return $dispatch->list_methods($plugin//'any');
 }
 
+use Dancer2::RPCPlugin::PluginNames;
+use Types::Standard qw( StrMatch );
+
+sub ValidationTemplates {
+    my $pn = Dancer2::RPCPlugin::PluginNames->new;
+
+    my $any_plugin = join("|", $pn->names, 'any');
+    my $templates = {
+        any_plugin => { type => StrMatch[ qr/(?:$any_plugin)/ ] }
+    };
+
+    return $templates;
+};
 use namespace::autoclean;
 1;
