@@ -1,11 +1,29 @@
-#! perl -w
-use strict;
+#! perl -I. -w
+use t::Test::abeltje;
 
-{
-    no warnings 'redefine';
-    sub Pod::Coverage::TRACE_ALL () {1}
-    sub Pod::Coverage::debug () {1}
-}
 use Test::Pod::Coverage;
 
-all_pod_coverage_ok();
+Test::Warnings->import(':no_end_test');
+
+my @ignore_words = sort {
+    length($b) <=> length($a) ||
+    $a cmp $b
+} map {chomp($_); $_} <DATA>;
+
+all_pod_coverage_ok({ trustme => \@ignore_words });
+
+__DATA__
+ClassHooks
+PluginKeyword
+dancer_app
+execute_plugin_hook
+hook
+keywords
+on_plugin_import
+plugin_args
+plugin_setting
+register
+register_hook
+register_plugin
+request
+var
