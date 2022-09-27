@@ -1,19 +1,29 @@
 package TestProjectCORS;
-use Dancer ':syntax';
-use Dancer::Plugin::RPC::RESTISH;
+use warnings;
+use strict;
+
+use Dancer2;
+use Dancer2::Plugin::RPC::RESTISH;
+
+set log => $ENV{TEST_DEBUG} ? 'debug' : 'info';
 
 # Register calls directly via POD
 restish '/system' => {
-    publish           => 'pod',
-    arguments         => ['TestProject::SystemCalls'],
-    cors_allow_origin => 'http://localhost:8080',
+    publish     => 'pod',
+    arguments   => ['TestProject::SystemCalls'],
+    plugin_args => {
+        cors_allow_origin => 'http://localhost:8080',
+    },
 };
 restish '/db' => {
-    publish           => 'pod',
-    arguments         => ['TestProject::ApiCalls'],
-    cors_allow_origin => '*',
+    publish     => 'pod',
+    arguments   => ['TestProject::ApiCalls'],
+    plugin_args => {
+        cors_allow_origin => '*',
+    }
 };
-true;
+
+1;
 
 __END__
 restish:

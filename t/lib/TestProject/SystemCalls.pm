@@ -31,5 +31,5 @@ Returns the current version
 sub do_version {
     return { software_version => $VERSION };
 }
-1;
 
+1;

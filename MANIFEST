@@ -20,9 +20,9 @@ t/130-restish-CORS.t
 t/225-register-restish.t
 t/Test/abeltje.pm
 t/lib/TestProject.pm
-t/lib/TestProjectCORS.pm
 t/lib/TestProject/ApiCalls.pm
 t/lib/TestProject/SystemCalls.pm
+t/lib/TestProjectCORS.pm
 xt/00-manifest.t
 xt/01-compile.t
 xt/02-pod_syntax.t

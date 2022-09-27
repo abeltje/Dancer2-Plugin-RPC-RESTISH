@@ -1,6 +1,8 @@
 package TestProject;
-use Dancer ':syntax';
-use Dancer::Plugin::RPC::RESTISH;
+use Dancer2;
+use Dancer2::Plugin::RPC::RESTISH;
+
+set log => $ENV{TEST_DEBUG} ? 'debug' : 'info';
 
 # Register calls directly via POD
 restish '/system' => {
@@ -11,8 +13,8 @@ restish '/db' => {
     publish   => 'pod',
     arguments => ['TestProject::ApiCalls'],
 };
-true;
 
+1;
 __END__
 restish:
     GET  /system/ping

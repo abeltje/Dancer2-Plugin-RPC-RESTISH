@@ -1,10 +1,10 @@
 package Dancer2::Plugin::RPC::RESTISH;
 use Moo;
-use Dancer2::Plugin;
+use Dancer2::Plugin ;#qw( plugin_keywords );
 
 with 'Dancer2::RPCPlugin';
 
-our $VERSION = '1.01';
+our $VERSION = '2.01';
 use constant PLUGIN_NAME => 'restish';
 
 use Dancer2::RPCPlugin::CallbackResultFactory;
@@ -41,7 +41,9 @@ plugin_keywords PLUGIN_NAME;
 
 sub restish {
     my ($plugin, $endpoint, $arguments) = @_;
-    my $allow_origin = $arguments->{cors_allow_origin} || '';
+    my $restish_args = $arguments->{plugin_args} || {};
+
+    my $allow_origin = $restish_args->{cors_allow_origin} || '';
     my @allowed_origins = split(' ', $allow_origin);
 
     my $dispatcher = $plugin->dispatch_builder(
@@ -66,7 +68,9 @@ sub restish {
 
         # we'll only handle requests that have either a JSON body or no body
         my $http_request = $dsl->app->request;
-        my ($ct) = (split /;\s*/, $http_request->content_type, 2);
+        my ($ct) = split(/;\s*/, $http_request->content_type // "", 2);
+        $ct //= "";
+
         if ($http_request->body && ($ct ne 'application/json')) {
             $dsl->pass();
         }
@@ -75,11 +79,16 @@ sub restish {
         my $request_path = $http_request->path;
 
         ##### Cross Origin Resource Sharing(CORS)
+        my $has_origin_header = grep {
+            lc($_) eq 'origin'
+        } $http_request->headers->header_field_names;
         my $has_origin = $http_request->header('Origin') || '';
         my $allowed_origin = ($allow_origin eq '*')
                           || grep { $_ eq $has_origin } @allowed_origins;
 
-        my $is_preflight = $has_origin && ($http_method eq 'OPTIONS');
+        my $is_preflight = $has_origin_header && ($http_method eq 'OPTIONS');
+        $dsl->app->log(debug => "[RESTISH-CORS] Preflight from $has_origin")
+            if $is_preflight;
 
         # with CORS, we do not allow mismatches on Origin
         if ($allow_origin && $has_origin && !$allowed_origin) {
@@ -153,7 +162,7 @@ sub restish {
         );
 
         # Send the CORS 'Access-Control-Allow-Origin' header
-        if ($allow_origin && $has_origin) {
+        if ($allow_origin && $has_origin_header) {
             my $allow_now = $allow_origin eq '*' ? '*' : $has_origin;
             $dsl->response->header('Access-Control-Allow-Origin' => $allow_now);
         }
@@ -162,14 +171,13 @@ sub restish {
             $dsl->app->log(
                 debug => "[CORS] preflight-request: $request_path ($method_name)"
             );
-            $dsl->response->status(200);
+            $dsl->response->status(204);
             $dsl->response->header(
                 'Access-Control-Allow-Headers',
                 $http_request->header('Access-Control-Request-Headers')
             ) if $http_request->header('Access-Control-Request-Headers');
 
             $dsl->response->header('Access-Control-Allow-Methods' => $found_method);
-            $dsl->response->content_type('text/plain');
             return "";
         }
 
@@ -217,7 +225,10 @@ sub restish {
             $dsl->response->status($error_response->return_status(PLUGIN_NAME));
             $response = $error_response->as_restish_error;
         }
-        elsif (!blessed($continue) || !$continue->does('Dancer2::RPCPlugin::CallbackResult')) {
+        elsif (   !blessed($continue)
+               || !$continue->can('does')
+               || !$continue->does('Dancer2::RPCPlugin::CallbackResult'))
+        {
             my $error_response = error_response(
                 error_code    => -32603,
                 error_message => "Internal error: 'callback_result' wrong class "
@@ -276,7 +287,7 @@ sub restish {
             : $response;
     };
 
-    $plugin->app->log(debug => "setting routes (restish): $endpoint ", $lister);
+    $plugin->app->log(debug => "Setting routes (restish): $endpoint ", $lister);
     # split the keys in $dispatcher so we can register methods for all
     for my $dispatch_route (keys %$dispatcher) {
         my ($hm, $route) = split(/$_HM_POSTFIX/, $dispatch_route, 2);
@@ -287,6 +298,11 @@ sub restish {
             regexp => $dancer_route,
             code   => $handle_call,
         );
+        $plugin->app->add_route(
+            method => 'options',
+            regexp => $dancer_route,
+            code   => $handle_call
+        ) if $allow_origin;
     }
 
 };
@@ -378,9 +394,9 @@ The third argument (the base_path) is optional.
 
 =back
 
-The plugin for RESTISH also adds 2 fields to C<$Dancer::RPCPlugin::ROUTE_INFO>:
+The plugin for RESTISH also adds 2 fields to C<$Dancer2::RPCPlugin::ROUTE_INFO>:
 
-        local $Dancer::RPCPlugin::ROUTE_INFO = {
+        local $Dancer2::RPCPlugin::ROUTE_INFO = {
             plugin        => PLUGIN_NAME,
             endpoint      => $endpoint,
             rpc_method    => $method_name,
@@ -434,6 +450,14 @@ Creates a (partial) dispatch table from data passed from the (YAML)-config file.
 
 Creates a (partial) dispatch table from data provided in POD.
 
+=begin pod-coverage
+
+=head2 PLUGIN_NAME
+
+The name for this plugin.
+
+=end pod-coverage
+
 =head1 LICENSE
 
 This library is free software; you can redistribute it and/or modify
@@ -455,6 +479,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 =head1 COPYRIGHT
 
-(c) MMXX - Abe Timmerman <abeltje@cpan.org>
+E<copy> MMXX - Abe Timmerman <abeltje@cpan.org>
 
 =cut

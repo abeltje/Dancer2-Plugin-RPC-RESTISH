@@ -1,69 +1,59 @@
-#! perl -w
-use strict;
-use lib 't/lib';
-
-use Test::More;
+#! perl -I. -w
+use t::Test::abeltje;
 
 use TestProject;
-use Dancer::Test;
+use Plack::Test;
 
+use HTTP::Request;
 use JSON;
 
-route_exists([GET => '/system/ping'],    "GET /system/ping exists");
-route_exists([GET => '/system/version'], "GET /system/version exists");
+my $app = TestProject->to_app();
+my $tester = Plack::Test->create($app);
 
 {
-    my $response = dancer_response(
+    my $request = HTTP::Request->new(
         GET => '/system/ping',
     );
+    my $response = $tester->request($request);
 
     my $ping = from_json('{"response": true}');
-    if (JSON->VERSION >= 2.90) {
-        my $t = 1;
-        $ping->{response} = bless \$t, 'JSON::PP::Boolean';
-    }
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         $ping,
         "GET /system/ping"
     ) or diag(explain($response));
 }
 
 {
-    my $response = dancer_response(
+    my $request = HTTP::Request->new(
         GET => '/system/version',
     );
+    my $response = $tester->request($request);
 
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         {software_version => $TestProject::SystemCalls::VERSION},
         "GET /system/version"
     ) or diag(explain($response));
 }
 
-route_exists([ POST => '/db/person' ],      "POST /db/person");
-route_exists([ GET => '/db/person/:id' ],   "GET /db/person/:id");
-route_exists([ PATCH => '/db/person/:id' ], "PATCH /db/person/:id");
-route_exists([ GET => '/db/persons' ],      "GET /db/persons");
-
 {
-    my $response = dancer_response(
+    my $request = HTTP::Request->new(
         POST => '/db/person',
-        {
-            headers => [
-                'Content-Type' => 'application/json'
-            ],
-            body => to_json(
-                {
-                    name => 'abeltje',
-                    job  => 'hacker',
-                }
-            ),
-        }
+        [
+            'Content-Type' => 'application/json'
+        ],
+        to_json(
+            {
+                name => 'abeltje',
+                job  => 'hacker',
+            }
+        ),
     );
-    is($response->{status}, 200, "status 200: create_person") or diag(explain($response));
+    my $response = $tester->request($request);
+    is($response->code, 200, "status 200: create_person") or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         my $p1 ={
             id => 1,
             name => 'abeltje',
@@ -72,23 +62,22 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
         "create_person()"
     ) or diag(explain($response->{content}));
 
-    my $response2 = dancer_response(
+    my $request2 = HTTP::Request->new(
         POST => '/db/person',
-        {
-            headers => [
-                'Content-Type' => 'application/json'
-            ],
-            body => to_json(
-                {
-                    name => 'Abe',
-                    job  => 'Hacker',
-                }
-            ),
-        }
+        [
+            'Content-Type' => 'application/json'
+        ],
+        to_json(
+            {
+                name => 'Abe',
+                job  => 'Hacker',
+            }
+        ),
     );
-    is($response2->{status}, 200, "status 200: create_person") or diag(explain($response2));
+    my $response2 = $tester->request($request2);
+    is($response2->code, 200, "status 200: create_person") or diag(explain($response2));
     is_deeply(
-        from_json($response2->{content}),
+        from_json($response2->content),
         my $p2 = {
             id => 2,
             name => 'Abe',
@@ -97,67 +86,67 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
         "create_person()"
     ) or diag(explain($response2->{content}));
 
-    $response = dancer_response(
-        PATCH => "/db/person/1",
-        {
-            headers => [ 'Content-Type' => 'application/json' ],
-            body    => to_json({job => 'Hacker'}),
-        }
+    $response = $tester->request(
+        HTTP::Request->new(
+            PATCH => "/db/person/1",
+            [ 'Content-Type' => 'application/json' ],
+            to_json({job => 'Hacker'}),
+        )
     );
-    is($response->{status}, 200, "status 200: update_person") or diag(explain($response));
+    is($response->code, 200, "status 200: update_person") or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         $p1 = {
             id => 1,
             name => 'abeltje',
             job => 'Hacker',
         },
         "update_person()"
-    ) or diag(explain($response->{content}));
+    ) or diag(explain($response->content));
 
-    $response = dancer_response(GET => '/db/person/1');
-    is($response->{status}, 200, "status 200: update_person") or diag(explain($response));
+    $response = $tester->request(HTTP::Request->new(GET => '/db/person/1'));
+    is($response->code, 200, "status 200: update_person") or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         $p1 = {
             id => 1,
             name => 'abeltje',
             job => 'Hacker',
         },
         "get_person()"
-    ) or diag(explain($response->{content}));
+    ) or diag(explain($response->content));
 
-    my $response3 = dancer_response(GET => '/db/persons');
-    is($response3->{status}, 200, "status 200: update_person") or diag(explain($response3));
+    my $response3 = $tester->request(HTTP::Request->new(GET => '/db/persons'));
+    is($response3->code, 200, "status 200: update_person") or diag(explain($response3));
     is_deeply(
-        from_json($response3->{content}),
+        from_json($response3->content),
         [ $p1, $p2 ],
         "get_all_persons()"
-    ) or diag(explain($response3->{content}));
+    ) or diag(explain($response3->content));
 
 }
 
 { # test with non JSON body (no content-type)
-    my $response = dancer_response(
-        POST => '/db/person',
-        {
-            headers => [ Origin => 'http://localhost' ],
-            body => to_json(
+    my $response = $tester->request(
+        HTTP::Request->new(
+            POST => '/db/person',
+            [ Origin => 'http://localhost' ],
+            to_json(
                 {
                     name => 'abeltje',
                     job  => 'hacker',
                 }
             ),
-        }
+        )
     );
-    is($response->{status}, 404, "status 404: create_person") or diag(explain($response));
+    is($response->code, 404, "status 404: create_person") or diag(explain($response));
 }
 
 { # test non existent path
-    my $response = dancer_response(
-        DELETE => '/db/persons',
+    my $response = $tester->request(
+        HTTP::Request->new(DELETE => '/db/persons')
     );
-    is($response->{status}, 404, "status 404: DELETE /db/persons") or diag(explain($response));
+    is($response->code, 404, "status 404: DELETE /db/persons") or diag(explain($response));
 }
 
-done_testing();
+abeltje_done_testing();

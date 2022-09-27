@@ -3,6 +3,7 @@ cpanfile*
 .*.swp
 Makefile
 MYMETA.*
+META.*
 pm_to_blib
 blib/
 cover_db

@@ -1,7 +1,7 @@
 package TestProject::ApiCalls;
 use warnings;
 use strict;
-use Dancer ':syntax';
+use Dancer2::RPCPlugin::ErrorResponse;
 
 my $_db = { person => { } };
 my $_sequence = 1;

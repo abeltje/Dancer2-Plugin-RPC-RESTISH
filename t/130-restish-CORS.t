@@ -1,112 +1,110 @@
-#! perl -w
-use strict;
-use lib 't/lib';
+#! perl -I. -w
+use t::Test::abeltje;
 
-use Test::More;
 
 BEGIN { $ENV{DANCER_APPDIR} = '.'; }
 use TestProjectCORS;
-use Dancer::Test;
+use Plack::Test;
 
+use HTTP::Request;
 use JSON;
 
-route_exists([ POST => '/db/person' ],      "POST /db/person");
-route_exists([ GET => '/db/person/:id' ],   "GET /db/person/:id");
-route_exists([ PATCH => '/db/person/:id' ], "PATCH /db/person/:id");
-route_exists([ GET => '/db/persons' ],      "GET /db/persons");
+my $app = TestProjectCORS->to_app();
+my $tester = Plack::Test->create($app);
 
 {
-    my $access1 = dancer_response(
-        OPTIONS => '/db/person',
-        {
-            headers => [
+    my $access1 = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/db/person',
+            [
                 'Origin'                         => 'http://localhost',
                 'Access-Control-Request-Method'  => 'POST',
             ],
-        }
+        )
     );
     is(
-        $access1->header('access-control-allow-origin'),
+        $access1->header('Access-Control-Allow-Origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($access1));
+
     is(
-        $access1->header('access-control-allow-methods'),
+        $access1->header('Access-Control-Allow-Methods'),
         'POST',
         "Got access-control-allow-methods"
     ) or diag(explain($access1));
 
-    my $response = dancer_response(
-        POST => '/db/person',
-        {
-            headers => [
+    my $response = $tester->request(
+        HTTP::Request->new(
+            POST => '/db/person',
+            [
                 'Origin'       => 'http://localhost',
                 'Content-Type' => 'application/json'
             ],
-            body => to_json(
+            to_json(
                 {
                     name => 'abeltje',
                     job  => 'hacker',
                 }
             ),
-        }
+        )
     );
-    is($response->{status}, 200, "status 200: create_person") or diag(explain($response));
+    is($response->code, 200, "status 200: create_person") or diag(explain($response));
     is(
-        $response->header('access-control-allow-origin'),
+        $response->header('Access-Control-Allow-Origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         my $p1 ={
             id => 1,
             name => 'abeltje',
             job => 'hacker',
         },
         "create_person()"
-    ) or diag(explain($response->{content}));
+    ) or diag(explain($response->content));
 
-    my $response2 = dancer_response(
-        POST => '/db/person',
-        {
-            headers => [
+    my $response2 = $tester->request(
+        HTTP::Request->new(
+            POST => '/db/person',
+            [
                 'Origin'       => 'http://localhost',
                 'Content-Type' => 'application/json'
             ],
-            body => to_json(
+            to_json(
                 {
                     name => 'Abe',
                     job  => 'Hacker',
                 }
             ),
-        }
+        )
     );
-    is($response2->{status}, 200, "status 200: create_person") or diag(explain($response2));
+    is($response2->code, 200, "status 200: create_person") or diag(explain($response2));
     is(
         $response->header('access-control-allow-origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($response));
     is_deeply(
-        from_json($response2->{content}),
+        from_json($response2->content),
         my $p2 = {
             id => 2,
             name => 'Abe',
             job => 'Hacker',
         },
         "create_person()"
-    ) or diag(explain($response2->{content}));
+    ) or diag(explain($response2->content));
 
     # preflight the 3nd request
-    my $access3 = dancer_response(
-        OPTIONS => '/db/person/1',
-        {
-            headers => [
+    my $access3 = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/db/person/1',
+            [
                 'Origin'                         => 'http://localhost',
                 'Access-Control-Request-Method'  => 'PATCH',
             ],
-        }
+        )
     );
     is(
         $access3->header('access-control-allow-origin'),
@@ -119,39 +117,39 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
         "Got access-control-allow-methods"
     ) or diag(explain($access3));
 
-    $response = dancer_response(
-        PATCH => "/db/person/1",
-        {
-            headers => [
+    $response = $tester->request(
+        HTTP::Request->new(
+            PATCH => "/db/person/1",
+            [
                 'Origin'       => 'http://localhost',
                 'Content-Type' => 'application/json'
             ],
-            body    => to_json({job => 'Hacker'}),
-        }
+            to_json({job => 'Hacker'}),
+        )
     );
-    is($response->{status}, 200, "status 200: update_person") or diag(explain($response));
+    is($response->code, 200, "status 200: update_person") or diag(explain($response));
     is(
         $response->header('access-control-allow-origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         $p1 = {
             id => 1,
             name => 'abeltje',
             job => 'Hacker',
         },
         "update_person()"
-    ) or diag(explain($response->{content}));
+    ) or diag(explain($response->content));
 
-    my $access4 = dancer_response(
-        OPTIONS => '/db/person/1',
-        {
-            headers => [
+    my $access4 = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/db/person/1',
+            [
                 'Origin'                         => 'http://localhost',
             ],
-        }
+        )
     );
     is(
         $access4->header('access-control-allow-origin'),
@@ -164,29 +162,33 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
         "Got access-control-allow-methods"
     ) or diag(explain($access3));
 
-    $response = dancer_response(
-        GET => '/db/person/1',
-        { headers => [Origin => 'http://localhost'] }
+    $response = $tester->request(
+        HTTP::Request->new(
+            GET => '/db/person/1',
+            [Origin => 'http://localhost']
+        )
     );
-    is($response->{status}, 200, "status 200: update_person") or diag(explain($response));
+    is($response->code, 200, "status 200: update_person") or diag(explain($response));
     is(
         $response->header('access-control-allow-origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($response));
     is_deeply(
-        from_json($response->{content}),
+        from_json($response->content),
         $p1 = {
             id => 1,
             name => 'abeltje',
             job => 'Hacker',
         },
         "get_person()"
-    ) or diag(explain($response->{content}));
+    ) or diag(explain($response->content));
 
-    my $access5 = dancer_response(
-        OPTIONS => '/db/persons',
-        { headers => [ 'Origin' => 'http://localhost' ] }
+    my $access5 = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/db/persons',
+            [ 'Origin' => 'http://localhost' ]
+        )
     );
     is(
         $access5->header('access-control-allow-origin'),
@@ -199,52 +201,54 @@ route_exists([ GET => '/db/persons' ],      "GET /db/persons");
         "Got access-control-allow-methods"
     ) or diag(explain($access5));
 
-    my $response3 = dancer_response(
-        GET => '/db/persons',
-        { headers => [ Origin => 'http://localhost' ] }
+    my $response3 = $tester->request(
+        HTTP::Request->new(
+            GET => '/db/persons',
+            [ Origin => 'http://localhost' ]
+        )
     );
-    is($response3->{status}, 200, "status 200: update_person") or diag(explain($response3));
+    is($response3->code, 200, "status 200: update_person") or diag(explain($response3));
     is(
         $response3->header('access-control-allow-origin'),
         '*',
         "Got access-control-allow-origin"
     ) or diag(explain($response3));
     is_deeply(
-        from_json($response3->{content}),
+        from_json($response3->content),
         [ $p1, $p2 ],
         "get_all_persons()"
-    ) or diag(explain($response3->{content}));
+    ) or diag(explain($response3->content));
 
 
-    my $no_access = dancer_response(
-        OPTIONS => '/db/persons',
-        {
-            headers => [
+    my $no_access = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/db/persons',
+            [
                 Origin => 'http://localhost',
                 'Access-Control-Request-Method' => 'POST',
             ]
-        }
+        )
     );
     is(
-        $no_access->{content},
+        $no_access->content,
         '[CORS-preflight] failed for POST => /db/persons',
         "Cannot POST to /db/persons (preflight)"
     ) or diag(explain($no_access));
 
-    $no_access = dancer_response(
-        OPTIONS => '/system/version',
-        {
-            headers => [
+    $no_access = $tester->request(
+        HTTP::Request->new(
+            OPTIONS => '/system/version',
+            [
                 'Origin' => 'http://localhost',
                 'Access-Control-Request-Method' => 'GET',
             ],
-        }
+        )
     );
     is(
-        $no_access->{content},
+        $no_access->content,
         "[CORS] http://localhost not allowed",
         "http://localhost not allowed for CORS"
     ) or diag(explain($no_access));
 }
 
-done_testing();
+abeltje_done_testing();
