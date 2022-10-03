@@ -7,6 +7,11 @@ with 'Dancer2::RPCPlugin';
 our $VERSION = '2.01_01';
 use constant PLUGIN_NAME => 'restish';
 
+has allow_origin => (
+    is      => 'rw',
+    default => sub { {} },
+);
+
 use Dancer2::RPCPlugin::CallbackResultFactory;
 use Dancer2::RPCPlugin::ErrorResponse;
 use Dancer2::RPCPlugin::FlattenData;
@@ -43,8 +48,7 @@ sub restish {
     my ($plugin, $endpoint, $arguments) = @_;
     my $restish_args = $arguments->{plugin_args} || {};
 
-    my $allow_origin = $restish_args->{cors_allow_origin} || '';
-    my @allowed_origins = split(' ', $allow_origin);
+    $plugin->allow_origin->{$endpoint} = $restish_args->{cors_allow_origin} || '';
 
     my $dispatcher = $plugin->dispatch_builder(
         $endpoint,
@@ -65,6 +69,10 @@ sub restish {
     $plugin->app->log(debug => "Starting restish-handler build: ", $lister);
     my $handle_call = sub {
         my ($dsl) = @_;
+        my ($pi) = grep { ref($_) eq __PACKAGE__ } @{ $dsl->plugins };
+
+        my $allow_origin = $pi->allow_origin->{$endpoint};
+        my @allowed_origins = split(" ", $allow_origin);
 
         # we'll only handle requests that have either a JSON body or no body
         my $http_request = $dsl->app->request;
@@ -302,7 +310,7 @@ sub restish {
             method => 'options',
             regexp => $dancer_route,
             code   => $handle_call
-        ) if $allow_origin;
+        ) if $plugin->allow_origin;
     }
 
 };
@@ -320,9 +328,11 @@ In the Controler-bit:
 
     use Dancer::Plugin::RPC::RESTISH;
     restish '/endpoint' => {
-        publish           => 'pod',
-        arguments         => ['MyProject::Admin'],
-        cors_allow_origin => '*',
+        publish     => 'pod',
+        arguments   => ['MyProject::Admin'],
+        plugin_args => {
+            cors_allow_origin => '*',
+        },
     };
 
 and in the Model-bit (B<MyProject::Admin>):
@@ -441,6 +451,16 @@ with either C<*> if that was set, or the value of the actual C<Origin>-header
 that was passed and equals one the preset values.
 
 =head1 INTERNAL
+
+=head2 Attributes
+
+=over
+
+=item B<allow_origin>
+
+Where do we allow Origin to be from.
+
+=back
 
 =head2 build_dispatcher_from_config
 
