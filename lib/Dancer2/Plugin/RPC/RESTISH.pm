@@ -4,7 +4,7 @@ use Dancer2::Plugin ;#qw( plugin_keywords );
 
 with 'Dancer2::RPCPlugin';
 
-our $VERSION = '2.01_01';
+our $VERSION = '2.01_02';
 use constant PLUGIN_NAME => 'restish';
 
 has allow_origin => (
