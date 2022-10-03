@@ -11,21 +11,23 @@ use Dancer2::RPCPlugin::ErrorResponse;
 use HTTP::Request;
 use Plack::Test;
 
-set log => $ENV{TEST_DEBUG} ? 'debug' : 'info';
-
 {
     note("default publish == 'config'");
-    set(plugins => {
-        'RPC::RESTISH' => {
-            '/endpoint' => {
-                'TestProject::SystemCalls' => {
-                    'GET@ping'    => 'do_ping',
-                    'GET@version' => 'do_version',
+    set(
+        plugins => {
+            'RPC::RESTISH' => {
+                '/endpoint' => {
+                    'TestProject::SystemCalls' => {
+                        'GET@ping'    => 'do_ping',
+                        'GET@version' => 'do_version',
+                    },
                 },
-            },
-        }
-    });
-    set(encoding => 'utf-8');
+            }
+        },
+        log      => ($ENV{TEST_DEBUG} ? 'debug' : 'error'),
+        encoding => 'utf-8',
+       );
+
     restish '/endpoint' => { };
 
     my $tester = Plack::Test->create(main->to_app());

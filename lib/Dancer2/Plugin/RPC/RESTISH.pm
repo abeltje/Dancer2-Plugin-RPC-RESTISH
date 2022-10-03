@@ -203,10 +203,11 @@ sub restish {
             %$query_args,
         };
         $dsl->app->log(
-            debug => "[handling_restish_request('$request_path' via '$found_match')] "
+            debug => "[handle_restish_request('$request_path' via '$found_match')] "
                    , $method_args
         );
 
+        my $start_request = time();
         my $continue = eval {
             (my $match_re = $found_match) =~ s{:\w+}{[^/]+}g;
             local $Dancer2::RPCPlugin::ROUTE_INFO = {
@@ -263,6 +264,15 @@ sub restish {
             $response = eval {
                 $code_wrapper->($handler, $package, $method_name, $method_args);
             };
+            my $error = $@;
+
+            $dsl->app->log(debug => "[handled_restish_response($method_name)] ", $response);
+            $dsl->app->log(
+                info => sprintf(
+                    "[RPC::RESTISH] request for '%s' took %.4fs",
+                    $request_path, time() - $start_request
+                )
+            );
 
             if (my $error = $@) {
                 my $error_response = blessed($error) && $error->can('as_restish_error')

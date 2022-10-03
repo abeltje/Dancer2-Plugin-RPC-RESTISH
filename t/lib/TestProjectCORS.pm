@@ -5,7 +5,7 @@ use strict;
 use Dancer2;
 use Dancer2::Plugin::RPC::RESTISH;
 
-set log => $ENV{TEST_DEBUG} ? 'debug' : 'info';
+set log => $ENV{TEST_DEBUG} ? 'debug' : 'error';
 
 # Register calls directly via POD
 restish '/system' => {
