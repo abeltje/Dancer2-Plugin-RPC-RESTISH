@@ -1,10 +1,14 @@
-Changes on 2022-10-03 for repository at:
-  Fetch URL: ssh://git@source.test-smoke.org:9999/~/Dancer2-Plugin-RPC-RESTISH
-  Push  URL: ssh://git@source.test-smoke.org:9999/~/Dancer2-Plugin-RPC-RESTISH
+Changes on 2022-10-11 for repository at:
+  Fetch URL: git@github.com:abeltje/Dancer2-Plugin-RPC-RESTISH.git
+  Push  URL: git@github.com:abeltje/Dancer2-Plugin-RPC-RESTISH.git
 
 Enjoy!
 
-2.01_02 2022-10-03T19:37:04+02:00 (e098167 => Abe Timmerman)
+2.02 2022-10-11T10:51:13+02:00 (54a4c4b => Abe Timmerman)
+ - (Abe Timmerman, Tue, 11 Oct 2022 10:51:13 +0200) Autocommit for
+   distribution Dancer2::Plugin::RPC::RESTISH 2.02 (minor)
+
+2.01_02 2022-10-03T19:37:04+02:00 (6b87abe => Abe Timmerman)
  - (Abe Timmerman, Mon, 3 Oct 2022 19:37:04 +0200) Autocommit for
    distribution Dancer2::Plugin::RPC::RESTISH 2.01_02 (same)
 
